@@ -3124,7 +3124,7 @@ Entry Orders that are cancelled via the above methods will not have this callbac
             <span class="n">pair</span> <span class="o">==</span> <span class="s2">&quot;BTC/USDT&quot;</span> 
             <span class="ow">and</span> <span class="n">entry_tag</span> <span class="o">==</span> <span class="s2">&quot;long_sma200&quot;</span> 
             <span class="ow">and</span> <span class="n">side</span> <span class="o">==</span> <span class="s2">&quot;long&quot;</span> 
-            <span class="ow">and</span> <span class="p">(</span><span class="n">current_time</span> <span class="o">-</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">minutes</span><span class="o">=</span><span class="mi">10</span><span class="p">))</span> <span class="o">&gt;</span> <span class="n">trade</span><span class="o">.</span><span class="n">open_date_utc</span>
+            <span class="ow">and</span> <span class="p">(</span><span class="n">current_time</span> <span class="o">-</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">minutes</span><span class="o">=</span><span class="mi">10</span><span class="p">))</span> <span class="o">&lt;=</span> <span class="n">trade</span><span class="o">.</span><span class="n">open_date_utc</span>
         <span class="p">):</span>
             <span class="c1"># just cancel the order if it has been filled more than half of the amount</span>
             <span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">filled</span> <span class="o">&gt;</span> <span class="n">order</span><span class="o">.</span><span class="n">remaining</span><span class="p">:</span>
