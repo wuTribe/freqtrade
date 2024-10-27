@@ -1795,6 +1795,10 @@
 <td><code>activate_tensorboard</code></td>
 <td><br> Indicate whether or not to activate tensorboard for the tensorboard enabled modules (currently Reinforcment Learning, XGBoost, Catboost, and PyTorch). Tensorboard needs Torch installed, which means you will need the torch/RL docker image or you need to answer "yes" to the install question about whether or not you wish to install Torch. <br> <strong>Datatype:</strong> Boolean. <br> Default: <code>True</code>.</td>
 </tr>
+<tr>
+<td><code>wait_for_training_iteration_on_reload</code></td>
+<td><br> When using /reload or ctrl-c, wait for the current training iteration to finish before completing graceful shutdown. If set to <code>False</code>, FreqAI will break the current training iteration, allowing you to shutdown gracefully more quickly, but you will lose your current training iteration. <br> <strong>Datatype:</strong> Boolean. <br> Default: <code>True</code>.</td>
+</tr>
 </tbody>
 </table>
 <h3 id="feature-parameters">Feature parameters<a class="headerlink" href="#feature-parameters" title="Permanent link">&para;</a></h3>
