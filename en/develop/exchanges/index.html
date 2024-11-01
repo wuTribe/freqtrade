@@ -2234,6 +2234,13 @@ OKX also only provides MARK candles for the past ~3 months. Backtesting futures 
 </div>
 <p>Gate.io allows the use of <code>POINT</code> to pay for fees. As this is not a tradable currency (no regular market available), automatic fee calculations will fail (and default to a fee of 0).
 The configuration parameter <code>exchange.unknown_fee_rate</code> can be used to specify the exchange rate between Point and the stake currency. Obviously, changing the stake-currency will also require changes to this value.</p>
+<p>Gate API keys require the following permissions on top of the market type you want to trade:</p>
+<ul>
+<li>"Spot Trade" <em>or</em> "Perpetual Futures" (Read and Write) (either select both, or the one matching the market you want to trade)</li>
+<li>"Wallet" (read only)</li>
+<li>"Account" (read only)</li>
+</ul>
+<p>Without these permissions, the bot will not start correctly and show errors like "permission missing".</p>
 <h2 id="bybit">Bybit<a class="headerlink" href="#bybit" title="Permanent link">&para;</a></h2>
 <p>Futures trading on bybit is currently supported for USDT markets, and will use isolated futures mode.</p>
 <p>On startup, freqtrade will set the position mode to "One-way Mode" for the whole (sub)account. This avoids making this call over and over again (slowing down bot operations), but means that changes to this setting may result in exceptions and errors.</p>
