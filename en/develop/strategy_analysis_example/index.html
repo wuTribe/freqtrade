@@ -1992,7 +1992,7 @@ They will allow you to drill deeper into your results, and perform analysis whic
 <span class="n">trades</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">&quot;pair&quot;</span><span class="p">)[</span><span class="s2">&quot;exit_reason&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">value_counts</span><span class="p">()</span>
 </code></pre></div>
 <h2 id="analyze-the-loaded-trades-for-trade-parallelism">Analyze the loaded trades for trade parallelism<a class="headerlink" href="#analyze-the-loaded-trades-for-trade-parallelism" title="Permanent link">&para;</a></h2>
-<p>This can be useful to find the best <code>max_open_trades</code> parameter, when used with backtesting in conjunction with <code>--disable-max-market-positions</code>.</p>
+<p>This can be useful to find the best <code>max_open_trades</code> parameter, when used with backtesting in conjunction with a very high <code>max_open_trades</code> setting.</p>
 <p><code>analyze_trade_parallelism()</code> returns a timeseries dataframe with an "open_trades" column, specifying the number of open trades for each candle.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span> <span class="nn">freqtrade.data.btanalysis</span> <span class="kn">import</span> <span class="n">analyze_trade_parallelism</span>
 

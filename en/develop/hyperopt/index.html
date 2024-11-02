@@ -3206,7 +3206,7 @@ Your epochs should therefore be aligned to the possible values - or you should b
 <p>After you run Hyperopt for the desired amount of epochs, you can later list all results for analysis, select only best or profitable once, and show the details for any of the epochs previously evaluated. This can be done with the <code>hyperopt-list</code> and <code>hyperopt-show</code> sub-commands. The usage of these sub-commands is described in the <a href="../utils/#list-hyperopt-results">Utils</a> chapter.</p>
 <h2 id="validate-backtesting-results">Validate backtesting results<a class="headerlink" href="#validate-backtesting-results" title="Permanent link">&para;</a></h2>
 <p>Once the optimized strategy has been implemented into your strategy, you should backtest this strategy to make sure everything is working as expected.</p>
-<p>To achieve same the results (number of trades, their durations, profit, etc.) as during Hyperopt, please use the same configuration and parameters (timerange, timeframe, ...) used for hyperopt <code>--dmmp</code>/<code>--disable-max-market-positions</code> and <code>--eps</code>/<code>--enable-position-stacking</code> for Backtesting.</p>
+<p>To achieve same the results (number of trades, their durations, profit, etc.) as during Hyperopt, please use the same configuration and parameters (timerange, timeframe, ...) used for hyperopt for Backtesting.</p>
 <h3 id="why-do-my-backtest-results-not-match-my-hyperopt-results">Why do my backtest results not match my hyperopt results?<a class="headerlink" href="#why-do-my-backtest-results-not-match-my-hyperopt-results" title="Permanent link">&para;</a></h3>
 <p>Should results not match, check the following factors:</p>
 <ul>
