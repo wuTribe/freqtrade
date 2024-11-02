@@ -2413,11 +2413,11 @@ pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </s
                           [--recursive-strategy-search] [--freqaimodel NAME]
                           [--freqaimodel-path PATH] [-i TIMEFRAME]
                           [--timerange TIMERANGE]
-                          [--data-format-ohlcv {json,jsongz,hdf5}]
+                          [--data-format-ohlcv {json,jsongz,hdf5,feather,parquet}]
                           [--max-open-trades INT]
                           [--stake-amount STAKE_AMOUNT] [--fee FLOAT]
                           [-p PAIRS [PAIRS ...]] [--hyperopt-path PATH]
-                          [--eps] [--dmmp] [--enable-protections]
+                          [--eps] [--enable-protections]
                           [--dry-run-wallet DRY_RUN_WALLET]
                           [--timeframe-detail TIMEFRAME_DETAIL] [-e INT]
                           [--spaces {all,buy,sell,roi,stoploss,trailing,protection,trades,default} [{all,buy,sell,roi,stoploss,trailing,protection,trades,default} ...]]
@@ -2426,15 +2426,15 @@ pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </s
                           [--hyperopt-loss NAME] [--disable-param-export]
                           [--ignore-missing-spaces] [--analyze-per-epoch]
 
-optional arguments:
+options:
   -h, --help            show this help message and exit
   -i TIMEFRAME, --timeframe TIMEFRAME
                         Specify timeframe (`1m`, `5m`, `30m`, `1h`, `1d`).
   --timerange TIMERANGE
                         Specify what timerange of data to use.
-  --data-format-ohlcv {json,jsongz,hdf5}
+  --data-format-ohlcv {json,jsongz,hdf5,feather,parquet}
                         Storage format for downloaded candle (OHLCV) data.
-                        (default: `json`).
+                        (default: `feather`).
   --max-open-trades INT
                         Override the value of the `max_open_trades`
                         configuration setting.
@@ -2451,10 +2451,6 @@ optional arguments:
   --eps, --enable-position-stacking
                         Allow buying the same pair multiple times (position
                         stacking).
-  --dmmp, --disable-max-market-positions
-                        Disable applying `max_open_trades` during backtest
-                        (same as setting `max_open_trades` to a very high
-                        number).
   --enable-protections, --enableprotections
                         Enable protections for backtesting.Will slow
                         backtesting down by a considerable amount, but will
@@ -2504,7 +2500,8 @@ optional arguments:
 
 Common arguments:
   -v, --verbose         Verbose mode (-vv for more, -vvv to get all messages).
-  --logfile FILE        Log to the file specified. Special values are:
+  --logfile FILE, --log-file FILE
+                        Log to the file specified. Special values are:
                         &#39;syslog&#39;, &#39;journald&#39;. See the documentation for more
                         details.
   -V, --version         show program&#39;s version number and exit
@@ -2513,7 +2510,7 @@ Common arguments:
                         `userdir/config.json` or `config.json` whichever
                         exists). Multiple --config options may be used. Can be
                         set to `-` to read config from stdin.
-  -d PATH, --datadir PATH
+  -d PATH, --datadir PATH, --data-dir PATH
                         Path to directory with historical backtesting data.
   --userdir PATH, --user-data-dir PATH
                         Path to userdata directory.
@@ -3171,16 +3168,13 @@ The prevalence is therefore: config &gt; parameter file &gt; strategy <code>*_pa
 <p>Windows does not support color-output natively, therefore it is automatically disabled. To have color-output for hyperopt running under windows, please consider using WSL.</p>
 </div>
 <h2 id="position-stacking-and-disabling-max-market-positions">Position stacking and disabling max market positions<a class="headerlink" href="#position-stacking-and-disabling-max-market-positions" title="Permanent link">&para;</a></h2>
-<p>In some situations, you may need to run Hyperopt (and Backtesting) with the
-<code>--eps</code>/<code>--enable-position-staking</code> and <code>--dmmp</code>/<code>--disable-max-market-positions</code> arguments.</p>
+<p>In some situations, you may need to run Hyperopt (and Backtesting) with the <code>--eps</code>/<code>--enable-position-staking</code> argument, or you may need to set <code>max_open_trades</code> to a very high number to disable the limit on the number of open trades.</p>
 <p>By default, hyperopt emulates the behavior of the Freqtrade Live Run/Dry Run, where only one
-open trade is allowed for every traded pair. The total number of trades open for all pairs
+open trade per pair is allowed. The total number of trades open for all pairs
 is also limited by the <code>max_open_trades</code> setting. During Hyperopt/Backtesting this may lead to
-some potential trades to be hidden (or masked) by previously open trades.</p>
-<p>The <code>--eps</code>/<code>--enable-position-stacking</code> argument allows emulation of buying the same pair multiple times,
-while <code>--dmmp</code>/<code>--disable-max-market-positions</code> disables applying <code>max_open_trades</code>
-during Hyperopt/Backtesting (which is equal to setting <code>max_open_trades</code> to a very high
-number).</p>
+potential trades being hidden (or masked) by already open trades.</p>
+<p>The <code>--eps</code>/<code>--enable-position-stacking</code> argument allows emulation of buying the same pair multiple times.
+Using <code>--max-open-trades</code> with a very high number will disable the limit on the number of open trades.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Dry/live runs will <strong>NOT</strong> use position stacking - therefore it does make sense to also validate the strategy without this as it's closer to reality.</p>
