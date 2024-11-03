@@ -1,17 +1,17 @@
 # Freqtrade rules
-config*.json
+#config*.json
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
 logfile.txt
-user_data/*
-!user_data/strategy/sample_strategy.py
-!user_data/notebooks
-!user_data/models
-!user_data/freqaimodels
-user_data/freqaimodels/*
-user_data/models/*
-user_data/notebooks/*
+#user_data/*
+#!user_data/strategy/sample_strategy.py
+#!user_data/notebooks
+#!user_data/models
+#!user_data/freqaimodels
+#user_data/freqaimodels/*
+#user_data/models/*
+#user_data/notebooks/*
 freqtrade-plot.html
 freqtrade-profit-plot.html
 freqtrade/rpc/api_server/ui/*
@@ -102,7 +102,7 @@ target/
 
 .env
 .venv
-.idea
+#.idea
 .vscode
 
 .pytest_cache/
