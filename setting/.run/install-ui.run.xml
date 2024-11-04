@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="back_test" type="PythonConfigurationType" factoryName="Python">
+  <configuration default="false" name="install-ui" type="PythonConfigurationType" factoryName="Python">
     <module name="freqtrade" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
@@ -14,7 +14,7 @@
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
     <option name="SCRIPT_NAME" value="$PROJECT_DIR$/freqtrade/main.py" />
-    <option name="PARAMETERS" value="backtesting --strategy SuperTrendSMA --timerange=20240501-" />
+    <option name="PARAMETERS" value="install-ui" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="false" />
