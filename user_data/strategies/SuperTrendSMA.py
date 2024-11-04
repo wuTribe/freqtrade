@@ -1,4 +1,3 @@
-
 import numpy as np  # noqa
 import pandas as pd  # noqa
 import pandas_ta as pda
@@ -7,8 +6,7 @@ import pandas_ta as pda
 import talib.abstract as ta
 from pandas import DataFrame
 
-from freqtrade.strategy import (DecimalParameter,
-                                IStrategy)
+from freqtrade.strategy import (IStrategy, merge_informative_pair)
 
 
 class SuperTrendSMA(IStrategy):
@@ -22,9 +20,6 @@ class SuperTrendSMA(IStrategy):
 
     trailing_stop = False
 
-    buy_stoch_rsi = DecimalParameter(0.5, 1, decimals=3, default=0.8, space="buy")
-    sell_stoch_rsi = DecimalParameter(0, 0.5, decimals=3, default=0.2, space="sell")
-
     timeframe = '15m'
 
     process_only_new_candles = False
@@ -33,12 +28,12 @@ class SuperTrendSMA(IStrategy):
     exit_profit_only = False
     ignore_roi_if_entry_signal = False
 
-    startup_candle_count: int = 90
+    startup_candle_count: int = 100
 
     # Optional order type mapping.
     order_types = {
-        'buy': 'limit',
-        'sell': 'limit',
+        'entry': 'limit',
+        'exit': 'limit',
         'stoploss': 'market',
         'stoploss_on_exchange': False
     }
@@ -51,8 +46,8 @@ class SuperTrendSMA(IStrategy):
 
     plot_config = {
         'main_plot': {
-            'sma21': {},
-            'supertrend_1': {},
+            'sma21_1h': {'color': 'blue', 'width': 2},
+            'supertrend': {'color': 'green', 'width': 2},
         },
         'subplots': {
         }
@@ -65,27 +60,32 @@ class SuperTrendSMA(IStrategy):
         return informative_pairs
 
     def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        stoch_rsi = ta.STOCHRSI(dataframe)
-        dataframe['fastd_rsi'] = stoch_rsi['fastd']
-        dataframe['fastk_rsi'] = stoch_rsi['fastk']
+        inf_tf = '1h'
+        informative = self.dp.get_pair_dataframe(pair=metadata['pair'], timeframe=inf_tf)
+        informative['sma21'] = ta.SMA(informative, timeperiod=21)
+        dataframe = merge_informative_pair(dataframe, informative, self.timeframe, inf_tf, ffill=True)
 
-        dataframe['sma21'] = ta.SMA(dataframe, timeperiod=21)
-
+        # 使用 pandas_ta 计算 Supertrend
         supertrend_length = 22
         supertrend_multiplier = 3.0
-        superTrend = pda.supertrend(dataframe['high'], dataframe['low'], dataframe['close'], length=supertrend_length,
-                                    multiplier=supertrend_multiplier)
-        dataframe['supertrend_1'] = superTrend['SUPERT_' + str(supertrend_length) + "_" + str(supertrend_multiplier)]
-        dataframe['supertrend_direction_1'] = superTrend[
-            'SUPERTd_' + str(supertrend_length) + "_" + str(supertrend_multiplier)]
+        supertrend = pda.supertrend(dataframe['high'], dataframe['low'], dataframe['close'],
+                                    length=supertrend_length, multiplier=supertrend_multiplier)
+
+        # 将 Supertrend 值和方向添加到 DataFrame
+        dataframe['supertrend'] = supertrend[f'SUPERT_{supertrend_length}_{supertrend_multiplier}']
+        dataframe['supertrend_direction'] = supertrend[f'SUPERTd_{supertrend_length}_{supertrend_multiplier}']
+
+        # 在趋势首次变化时生成买卖信号
+        dataframe['buy_signal'] = (dataframe['supertrend_direction'] == 1) & (dataframe['supertrend_direction'].shift(1) == -1)
+        dataframe['sell_signal'] = (dataframe['supertrend_direction'] == -1) & (dataframe['supertrend_direction'].shift(1) == 1)
 
         return dataframe
 
     def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         dataframe.loc[
             (
-                    (dataframe['close'] > dataframe['sma21']) &
-                    (dataframe['volume'] > 0)
+                    (dataframe['buy_signal'])  # Supertrend 买入信号
+                    & (dataframe['volume'] > 0)
             ),
             'enter_long'] = 1
 
@@ -94,8 +94,8 @@ class SuperTrendSMA(IStrategy):
     def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         dataframe.loc[
             (
-                    (dataframe['fastk_rsi'] > self.sell_stoch_rsi.value) &
-                    (dataframe['volume'] > 0)
+                    (dataframe['sell_signal'])  # Supertrend 卖出信号
+                    & (dataframe['volume'] > 0)
             ),
             'exit_long'] = 1
         return dataframe
