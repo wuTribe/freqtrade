@@ -1,17 +1,76 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Optional
 
 import numpy as np  # noqa
 import pandas as pd  # noqa
-import pandas_ta as pda
 # --------------------------------
 # Add your lib to import here
 import talib.abstract as ta
 from pandas import DataFrame
 
-from freqtrade.persistence import Trade, Order
+from freqtrade.persistence import Trade
 from freqtrade.strategy import (IStrategy, merge_informative_pair, stoploss_from_absolute)
 
+
+# 计算 Chandelier Exit 指标
+def chandelier_exit(dataframe, atr_period=22, atr_multiplier=3.0, use_close=True):
+    # 计算 ATR
+    dataframe['atr'] = ta.ATR(dataframe, timeperiod=atr_period).round(3)
+
+    # 计算最高和最低点
+    if use_close:
+        highest = dataframe['close'].rolling(window=atr_period).max()
+        lowest = dataframe['close'].rolling(window=atr_period).min()
+    else:
+        highest = dataframe['high'].rolling(window=atr_period).max()
+        lowest = dataframe['low'].rolling(window=atr_period).min()
+
+    # 计算初始 long 和 short 停损线
+    dataframe['long_stop'] = highest - dataframe['atr'] * atr_multiplier
+    dataframe['short_stop'] = lowest + dataframe['atr'] * atr_multiplier
+
+    # 创建临时列表以逐步更新 `long_stop` 和 `short_stop`
+    long_stops = [dataframe['long_stop'].iloc[0]]
+    short_stops = [dataframe['short_stop'].iloc[0]]
+
+    # 循环逐行更新 `long_stop` 和 `short_stop`
+    for i in range(1, len(dataframe)):
+        prev_long_stop = long_stops[-1]  # 前一行的 long_stop
+        prev_short_stop = short_stops[-1]  # 前一行的 short_stop
+
+        # 更新 long_stop
+        current_long_stop = dataframe['long_stop'].iloc[i]
+        if dataframe['close'].iloc[i - 1] > prev_long_stop:
+            long_stops.append(np.maximum(current_long_stop, prev_long_stop))
+        else:
+            long_stops.append(current_long_stop)
+
+        # 更新 short_stop
+        current_short_stop = dataframe['short_stop'].iloc[i]
+        if dataframe['close'].iloc[i - 1] < prev_short_stop:
+            short_stops.append(np.minimum(current_short_stop, prev_short_stop))
+        else:
+            short_stops.append(current_short_stop)
+
+    # 将更新后的 long_stops 和 short_stops 列赋值回 dataframe
+    dataframe['long_stop'] = long_stops
+    dataframe['short_stop'] = short_stops
+
+    # 确定方向
+    dataframe['dir'] = np.where(
+        dataframe['close'] > dataframe['short_stop'], 1,
+        np.where(dataframe['close'] < dataframe['long_stop'], -1, np.nan)
+    )
+    dataframe['dir'] = dataframe['dir'].ffill().fillna(1)  # 初始方向设为1
+
+    # 生成买卖信号
+    dataframe['buy_signal'] = (dataframe['dir'] == 1) & (dataframe['dir'].shift(1) == -1)
+    dataframe['sell_signal'] = (dataframe['dir'] == -1) & (dataframe['dir'].shift(1) == 1)
+
+    # 清理临时列
+    # dataframe.drop(columns=['long_stop_prev', 'short_stop_prev'], inplace=True)
+
+    return dataframe
 
 class SuperTrendSMA(IStrategy):
     INTERFACE_VERSION = 3
@@ -51,11 +110,13 @@ class SuperTrendSMA(IStrategy):
     plot_config = {
         'main_plot': {
             'sma21_1h': {'color': 'blue', 'width': 2},
-            'supertrend': {'color': 'black', 'width': 2},
-            'take_profit_price': {'color': 'green', 'width': 2},
-            'stop_loss_price': {'color': 'red', 'width': 2},
+            'long_stop': {'color': '#26a69a', 'width': 2},
+            'short_stop': {'color': '#ef5350', 'width': 2},
         },
         'subplots': {
+            "dir" : {
+                "dir": {'color': 'blue', 'width': 2}
+            }
         }
     }
 
@@ -105,32 +166,18 @@ class SuperTrendSMA(IStrategy):
         informative['sma21_slope'] = informative['sma21'] - informative['sma21'].shift(1)
         dataframe = merge_informative_pair(dataframe, informative, self.timeframe, inf_tf, ffill=True)
 
-        # 使用 pandas_ta 计算 Supertrend
-        supertrend_length = 22
-        supertrend_multiplier = 3.0
-        supertrend = pda.supertrend(dataframe['high'], dataframe['low'], dataframe['close'],
-                                    length=supertrend_length, multiplier=supertrend_multiplier)
-
-        # 将 Supertrend 值和方向添加到 DataFrame
-        dataframe['supertrend'] = supertrend[f'SUPERT_{supertrend_length}_{supertrend_multiplier}']
-        dataframe['supertrend_direction'] = supertrend[f'SUPERTd_{supertrend_length}_{supertrend_multiplier}']
-
-        # 在趋势首次变化时生成买卖信号
-        dataframe['buy_signal'] = (dataframe['supertrend_direction'] == 1) & (
-                dataframe['supertrend_direction'].shift(1) == -1)
-        dataframe['sell_signal'] = (dataframe['supertrend_direction'] == -1) & (
-                dataframe['supertrend_direction'].shift(1) == 1)
-
-        # 计算 ATR
-        atr_period = 22
-        stop_loss_atr_multiplier = 4.0
-        dataframe['atr'] = ta.ATR(dataframe, timeperiod=atr_period)
+        # 超级趋势计算
+        dataframe = chandelier_exit(dataframe, atr_period=22, atr_multiplier=3.0, use_close=True)
+        # 设置买卖信号
+        dataframe['buy_signal'] = dataframe['buy_signal']
+        dataframe['sell_signal'] = dataframe['sell_signal']
 
         # 从配置文件中读取手续费，如果配置中没有 "fee" 则默认 0.1%
         fee_rate = self.config.get("fee", 0.001)
         # 设定每次交易的固定亏损金额，例如 100 美元
         fixed_loss_amount = 100.0
         # 计算每笔交易的总手续费预算
+        stop_loss_atr_multiplier = 4.0
 
         # 做多逻辑
         long_entry_price = dataframe['close']
