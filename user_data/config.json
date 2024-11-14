@@ -7,10 +7,10 @@
     "tradable_balance_ratio": 0.99,
     "fiat_display_currency": "USD",
     "dry_run": true,
-    "dry_run_wallet": 1000000,
+    "dry_run_wallet": 400,
     "cancel_open_orders_on_exit": false,
-    "trading_mode": "spot",
-    "margin_mode": "",
+    "trading_mode": "futures",
+    "margin_mode": "isolated",
     "unfilledtimeout": {
         "entry": 10,
         "exit": 10,
@@ -41,7 +41,7 @@
         },
         "ccxt_async_config": {},
         "pair_whitelist": [
-            "BNB/USDT"
+            "BNB/USDT:USDT"
         ],
         "pair_blacklist": [
         ]

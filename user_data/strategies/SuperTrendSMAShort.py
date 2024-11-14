@@ -7,7 +7,6 @@ import pandas as pd  # noqa
 # Add your lib to import here
 import talib.abstract as ta
 from pandas import DataFrame
-from sympy.physics.units import volume
 
 from freqtrade.persistence import Trade
 from freqtrade.strategy import (IStrategy, merge_informative_pair, stoploss_from_absolute)
@@ -73,7 +72,7 @@ def chandelier_exit(dataframe, atr_period=22, atr_multiplier=3.0, use_close=True
 
     return dataframe
 
-class SuperTrendSMA(IStrategy):
+class SuperTrendSMAShort(IStrategy):
     INTERFACE_VERSION = 3
 
     minimal_roi = {
@@ -91,6 +90,8 @@ class SuperTrendSMA(IStrategy):
     use_exit_signal = True
     exit_profit_only = False
     ignore_roi_if_entry_signal = False
+    position_adjustment_enable = False
+    can_short = True
 
     startup_candle_count: int = 100
 
@@ -115,9 +116,8 @@ class SuperTrendSMA(IStrategy):
             'short_stop': {'color': '#ef5350', 'width': 2},
         },
         'subplots': {
-            "obv": {
-                'obv': {'color': '#26a69a', 'width': 2},
-                'obv_sma': {'color': '#ef5350', 'width': 2},
+            "dir" : {
+                "dir": {'color': 'blue', 'width': 2}
             }
         }
     }
@@ -129,7 +129,7 @@ class SuperTrendSMA(IStrategy):
         # 从配置文件中读取手续费，如果配置中没有 "fee" 则默认 0.1%
         self.fee_rate = self.config.get("fee", 0.001)
         # 设定每次交易的固定亏损金额，例如 100 美元
-        self.fixed_loss_amount = self.config.get("dry_run_wallet", 400) / 400
+        self.fixed_loss_amount = 100
         pass
 
     def custom_stoploss(self, pair: str, trade: 'Trade', current_time: datetime,
@@ -138,7 +138,7 @@ class SuperTrendSMA(IStrategy):
         dataframe, _ = self.dp.get_analyzed_dataframe(pair=pair, timeframe=self.timeframe)
         # 根据入场位置计算的目标点位出场
         minutes_ = int((trade.open_date - dataframe['date'].iloc[0]) / timedelta(minutes=15)) - 1
-        if minutes_ < 0:
+        if minutes_ <= 0:
             return self.stoploss
         stop_loss_price = dataframe.iloc[minutes_]['stop_loss_price']
 
@@ -157,30 +157,9 @@ class SuperTrendSMA(IStrategy):
     def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         inf_tf = '1h'
         informative = self.dp.get_pair_dataframe(pair=metadata['pair'], timeframe=inf_tf)
-        sma_timeperiod = 21
-        informative['sma21'] = ta.SMA(informative, timeperiod=sma_timeperiod)
+        informative['sma21'] = ta.SMA(informative, timeperiod=21)
         informative['sma21_slope'] = informative['sma21'] - informative['sma21'].shift(1)
         dataframe = merge_informative_pair(dataframe, informative, self.timeframe, inf_tf, ffill=True)
-
-        inf_tf = '4h'
-        informative = self.dp.get_pair_dataframe(pair=metadata['pair'], timeframe=inf_tf)
-        informative['sma21'] = ta.SMA(informative, timeperiod=sma_timeperiod)
-        informative['sma21_slope'] = informative['sma21'] - informative['sma21'].shift(1)
-        dataframe = merge_informative_pair(dataframe, informative, self.timeframe, inf_tf, ffill=True)
-
-        # 计算成交量相关指标
-        volume_period = 10  # 成交量的周期
-        volume_threshold_multiplier = 1.5  # 成交量放大倍数的阈值
-        # 计算过去 N 周期的平均成交量
-        dataframe['avg_volume'] = dataframe['volume'].rolling(window=volume_period).mean()
-        # 计算 OBV 指标
-        dataframe['obv'] = ta.OBV(dataframe['close'], dataframe['volume'])
-        # 计算 OBV 的 20 日简单移动平均线 (SMA)
-        dataframe['obv_sma'] = dataframe['obv'].rolling(window=sma_timeperiod).mean()
-        # 判断成交量是否显著放大：当前成交量大于过去 N 周期的平均成交量 * 放大倍数
-        dataframe['volume_boost'] = dataframe['volume'] > (dataframe['avg_volume'] * volume_threshold_multiplier)
-        # 判断 OBV 是否支持当前价格走势（OBV 应该与价格方向一致）
-        dataframe['obv_confirmation'] = dataframe['obv'] > dataframe['obv_sma']
 
         # 超级趋势计算
         dataframe = chandelier_exit(dataframe, atr_period=22, atr_multiplier=3.0, use_close=True)
@@ -230,18 +209,22 @@ class SuperTrendSMA(IStrategy):
 
     def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         # 设置斜率的最小值，只有当斜率大于某个阈值时才买入
-        slope_threshold = 0.1  # 根据需要调整斜率阈值
+        slope_threshold = 0.05  # 根据需要调整斜率阈值
+        dataframe.loc[
+            (
+                    (1 > 0)
+                    & (dataframe['volume'] < 0)
+            ),
+            ['enter_long','enter_tag']] = (1, '')
         dataframe.loc[
             (
                     (1 > 0)
                     # & (dataframe['atr'] >= 2)
-                    & (dataframe['volume_boost'])  # 成交量放大的条件
-                    & (dataframe['obv_confirmation'])  # OBV 确认价格走势
-                    & (dataframe['sma21_slope_4h'] > 0) # 判断 sma21_1h 是否有足够的上升斜率
-                    & (dataframe['buy_signal'])  # Supertrend 买入信号
+                    & (dataframe['sma21_slope_1h'] < -slope_threshold) # 判断 sma21_1h 是否有足够的上升斜率
+                    & (dataframe['sell_signal'])  # Supertrend 买入信号
                     & (dataframe['volume'] > 0)
             ),
-            'enter_long'] = 1
+            ['enter_short','enter_tag']] = (1, '')
 
         return dataframe
 
@@ -255,8 +238,42 @@ class SuperTrendSMA(IStrategy):
         current_candle = dataframe.iloc[-1].squeeze()
         return current_candle['investment_amount']
 
+    # 仓位调整，有交易数据后，每次都会调用
+    def adjust_trade_position(
+        self,
+        trade: Trade,
+        current_time: datetime,
+        current_rate: float,
+        current_profit: float,
+        min_stake: Optional[float],
+        max_stake: float,
+        current_entry_rate: float,
+        current_exit_rate: float,
+        current_entry_profit: float,
+        current_exit_profit: float,
+        **kwargs,
+    ) -> Union[Optional[float], tuple[Optional[float], Optional[str]]]:
+        # 第一笔交易，跳过
+        if trade.open_date == current_time:
+            return None
+
+        # 获取最新的蜡烛数据
+        dataframe, _ = self.dp.get_analyzed_dataframe(pair=trade.pair, timeframe=self.timeframe)
+        current_candle = dataframe.iloc[-1].squeeze()
+
+        # 检查是否为入场点，如果是则返回追加资金量
+        if current_candle['buy_signal'] == 1:  # 根据你确定入场点的条件，比如dir == 1
+            stoploss = self.custom_stoploss(trade.pair, trade, current_time, current_rate, current_profit)
+            # 亏损固定金额，到止损位置所需要加仓的资金
+            return self.fixed_loss_amount / (abs(stoploss) + self.fee_rate * 2), "position-add-amount"
+
+        # 如果不满足追加条件则不调整仓位
+        return None
+
+
     def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        dataframe['exit_long'] = 0
+        # dataframe['exit_long'] = 0
+        dataframe['exit_short'] = 0
         return dataframe
 
     def custom_exit(self, pair: str, trade: Trade, current_time: datetime, current_rate: float, current_profit: float,
@@ -268,6 +285,7 @@ class SuperTrendSMA(IStrategy):
             take_profit_price = dataframe.iloc[-1].squeeze()['take_profit_price']
         else:
             take_profit_price = dataframe.iloc[minutes_]['take_profit_price']
+
         if trade.is_short:
             if take_profit_price >= current_rate:
                 return 'short_target_price'
