@@ -84,7 +84,7 @@ class SuperTrendSMA(IStrategy):
     trailing_stop = False
     use_custom_stoploss = True
 
-    timeframe = '15m'
+    timeframe = '5m'
 
     process_only_new_candles = False
 
@@ -140,7 +140,7 @@ class SuperTrendSMA(IStrategy):
         minutes_ = int((trade.open_date - dataframe['date'].iloc[0]) / timedelta(minutes=15)) - 1
         if minutes_ < 0:
             return self.stoploss
-        stop_loss_price = dataframe.iloc[minutes_]['stop_loss_price']
+        stop_loss_price = dataframe.iloc[minutes_]['stop_loss_price_15m']
 
         # 使用 stoploss_from_absolute 计算止损百分比
         stop_loss_percentage = stoploss_from_absolute(stop_rate=stop_loss_price, current_rate=current_rate, is_short=trade.is_short)
@@ -168,32 +168,24 @@ class SuperTrendSMA(IStrategy):
         informative['sma21_slope'] = informative['sma21'] - informative['sma21'].shift(1)
         dataframe = merge_informative_pair(dataframe, informative, self.timeframe, inf_tf, ffill=True)
 
-        # 计算成交量相关指标
-        volume_period = 10  # 成交量的周期
-        volume_threshold_multiplier = 1.5  # 成交量放大倍数的阈值
-        # 计算过去 N 周期的平均成交量
-        dataframe['avg_volume'] = dataframe['volume'].rolling(window=volume_period).mean()
-        # 计算 OBV 指标
-        dataframe['obv'] = ta.OBV(dataframe['close'], dataframe['volume'])
-        # 计算 OBV 的 20 日简单移动平均线 (SMA)
-        dataframe['obv_sma'] = dataframe['obv'].rolling(window=sma_timeperiod).mean()
-        # 判断成交量是否显著放大：当前成交量大于过去 N 周期的平均成交量 * 放大倍数
-        dataframe['volume_boost'] = dataframe['volume'] > (dataframe['avg_volume'] * volume_threshold_multiplier)
-        # 判断 OBV 是否支持当前价格走势（OBV 应该与价格方向一致）
-        dataframe['obv_confirmation'] = dataframe['obv'] > dataframe['obv_sma']
 
+        inf_tf = '15m'
+        informative = self.dp.get_pair_dataframe(pair=metadata['pair'], timeframe=inf_tf)
+        sma_timeperiod = 21
+        informative['sma21'] = ta.SMA(informative, timeperiod=sma_timeperiod)
+        informative['sma21_slope'] = informative['sma21'] - informative['sma21'].shift(1)
         # 超级趋势计算
-        dataframe = chandelier_exit(dataframe, atr_period=22, atr_multiplier=3.0, use_close=True)
+        informative = chandelier_exit(informative, atr_period=22, atr_multiplier=3.0, use_close=True)
         # 设置买卖信号
-        dataframe['buy_signal'] = dataframe['buy_signal']
-        dataframe['sell_signal'] = dataframe['sell_signal']
+        informative['buy_signal'] = informative['buy_signal']
+        informative['sell_signal'] = informative['sell_signal']
 
         # 计算每笔交易的总手续费预算
         stop_loss_atr_multiplier = 4.0
 
         # 做多逻辑
-        long_entry_price = dataframe['close']
-        long_stop_loss_price = long_entry_price - dataframe['atr'] * stop_loss_atr_multiplier  # 做多止损价格
+        long_entry_price = informative['close']
+        long_stop_loss_price = long_entry_price - informative['atr'] * stop_loss_atr_multiplier  # 做多止损价格
         long_stop_loss_percentage = abs((long_entry_price - long_stop_loss_price) / long_entry_price)
         long_investment_amount = self.fixed_loss_amount / (long_stop_loss_percentage + self.fee_rate * 2)
 
@@ -202,8 +194,8 @@ class SuperTrendSMA(IStrategy):
         long_take_profit_price_adj = long_entry_price * (1 + long_take_profit_percentage)
 
         # 做空逻辑
-        short_entry_price = dataframe['close']
-        short_stop_loss_price = short_entry_price + dataframe['atr'] * stop_loss_atr_multiplier  # 做空止损价格
+        short_entry_price = informative['close']
+        short_stop_loss_price = short_entry_price + informative['atr'] * stop_loss_atr_multiplier  # 做空止损价格
         short_stop_loss_percentage = abs((short_stop_loss_price - short_entry_price) / short_entry_price)
         short_investment_amount = self.fixed_loss_amount / (long_stop_loss_percentage + self.fee_rate * 2)
 
@@ -213,18 +205,19 @@ class SuperTrendSMA(IStrategy):
 
         # 将计算结果添加到 DataFrame
         # 做多信号时的各项指标
-        dataframe.loc[dataframe['buy_signal'], 'investment_amount'] = long_investment_amount // 1
-        dataframe.loc[dataframe['buy_signal'], 'stop_loss_price'] = long_stop_loss_price
-        dataframe.loc[dataframe['buy_signal'], 'stop_loss_percentage'] = long_stop_loss_percentage
-        dataframe.loc[dataframe['buy_signal'], 'take_profit_price'] = long_take_profit_price_adj
-        dataframe.loc[dataframe['buy_signal'], 'take_profit_percentage'] = long_take_profit_percentage
+        informative.loc[informative['buy_signal'], 'investment_amount'] = long_investment_amount // 1
+        informative.loc[informative['buy_signal'], 'stop_loss_price'] = long_stop_loss_price
+        informative.loc[informative['buy_signal'], 'stop_loss_percentage'] = long_stop_loss_percentage
+        informative.loc[informative['buy_signal'], 'take_profit_price'] = long_take_profit_price_adj
+        informative.loc[informative['buy_signal'], 'take_profit_percentage'] = long_take_profit_percentage
 
         # 做空信号时的各项指标
-        dataframe.loc[dataframe['sell_signal'], 'investment_amount'] = short_investment_amount // 1
-        dataframe.loc[dataframe['sell_signal'], 'stop_loss_price'] = short_stop_loss_price
-        dataframe.loc[dataframe['sell_signal'], 'stop_loss_percentage'] = short_stop_loss_percentage
-        dataframe.loc[dataframe['sell_signal'], 'take_profit_price'] = short_take_profit_price_adj
-        dataframe.loc[dataframe['sell_signal'], 'take_profit_percentage'] = short_take_profit_percentage
+        informative.loc[informative['sell_signal'], 'investment_amount'] = short_investment_amount // 1
+        informative.loc[informative['sell_signal'], 'stop_loss_price'] = short_stop_loss_price
+        informative.loc[informative['sell_signal'], 'stop_loss_percentage'] = short_stop_loss_percentage
+        informative.loc[informative['sell_signal'], 'take_profit_price'] = short_take_profit_price_adj
+        informative.loc[informative['sell_signal'], 'take_profit_percentage'] = short_take_profit_percentage
+        dataframe = merge_informative_pair(dataframe, informative, self.timeframe, inf_tf, ffill=True)
 
         return dataframe
 
@@ -235,10 +228,8 @@ class SuperTrendSMA(IStrategy):
             (
                     (1 > 0)
                     # & (dataframe['atr'] >= 2)
-                    & (dataframe['volume_boost'])  # 成交量放大的条件
-                    & (dataframe['obv_confirmation'])  # OBV 确认价格走势
                     & (dataframe['sma21_slope_4h'] > 0) # 判断 sma21_1h 是否有足够的上升斜率
-                    & (dataframe['buy_signal'])  # Supertrend 买入信号
+                    & (dataframe['buy_signal_15m'])  # Supertrend 买入信号
                     & (dataframe['volume'] > 0)
             ),
             'enter_long'] = 1
@@ -253,7 +244,7 @@ class SuperTrendSMA(IStrategy):
 
         dataframe, _ = self.dp.get_analyzed_dataframe(pair=pair, timeframe=self.timeframe)
         current_candle = dataframe.iloc[-1].squeeze()
-        return current_candle['investment_amount']
+        return current_candle['investment_amount_15m']
 
     def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         dataframe['exit_long'] = 0
@@ -265,9 +256,9 @@ class SuperTrendSMA(IStrategy):
         # 根据入场位置计算的目标点位出场
         minutes_ = int((trade.open_date - dataframe['date'].iloc[0]) / timedelta(minutes=15)) - 1
         if minutes_ < 0:
-            take_profit_price = dataframe.iloc[-1].squeeze()['take_profit_price']
+            take_profit_price = dataframe.iloc[-1].squeeze()['take_profit_price_15m']
         else:
-            take_profit_price = dataframe.iloc[minutes_]['take_profit_price']
+            take_profit_price = dataframe.iloc[minutes_]['take_profit_price_15m']
         if trade.is_short:
             if take_profit_price >= current_rate:
                 return 'short_target_price'
